@@ -4,7 +4,12 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#define REQ_SIZE 4096
+
 void *first_block = NULL;
+
+int pages_allocated = 0;
+unsigned int curr = 0;
 
 struct block{
     size_t size;
@@ -15,6 +20,14 @@ struct block{
 struct block *last_block = NULL;
 
 #define BLOCK_SIZE sizeof(struct block)
+
+void *get_free_page(size_t size){
+    void *ptr;
+    ptr = sbrk((((size+BLOCK_SIZE)/REQ_SIZE)+1)*REQ_SIZE);
+    if(ptr == (void *)-1)return NULL;
+    pages_allocated += ((size+BLOCK_SIZE)/REQ_SIZE)+1;
+    return ptr;
+}
 
 struct block *find_free_block(size_t size){
     struct block *current = first_block;
@@ -27,12 +40,16 @@ struct block *find_free_block(size_t size){
 
 struct block *get_space(size_t size){
     struct block *new_block;
-    new_block = sbrk(0);
-    void* request = sbrk(size + BLOCK_SIZE);
-    assert(request == new_block);
+    void *request;
+    if((curr + size + BLOCK_SIZE) > pages_allocated * REQ_SIZE){
+        new_block = get_free_page(size);
+    }else{
+        new_block = (struct block *)((char*)first_block + curr);
+    }
     if(request == (void*) -1){
         return NULL;      //Failure on sbrk
     }
+    curr += (size + BLOCK_SIZE);
     if(last_block){
         last_block->next = new_block;
     }
@@ -92,7 +109,7 @@ void free(void *ptr){
 }
 
 struct tint{
-    int arr[20];
+    int arr[2000];
 };
 
 int main(){
